@@ -7,17 +7,11 @@ Created on Mon Feb 09 11:39:52 2018
 """
 
 
-from collections import Counter, defaultdict
-from dateutil.parser import parse
-from dateutil.relativedelta import relativedelta
 from itertools import chain
 from subprocess import check_output, CalledProcessError, STDOUT
 import datetime
-import errno
 import glob
 import os
-import re
-import stat
 import sys
 import tempfile
 
@@ -27,19 +21,19 @@ import tempfile
 ## Initialization
 ###########
 # Timestamping format string
-TIMEFORMAT     = "%Y-%m-%d-%H-%M-%S"
+TIMEFORMAT = "%Y-%m-%d-%H-%M-%S"
 # Config file name
-CONFIGFILE     = ".rstm.config"
+CONFIGFILE = ".rstm.config"
 # Log file name
-LOGFILE        = ""
+LOGFILE = ""
 # Number of log days to keep
-LOG_DAYS       = 7
-# Set "debug", below, to "True" to get debug info; set it to "False" to run silently
-debug          = True;
+LOGDAYS = 7
+# Set "DEBUG", below, to "True" to get debug info; set it to "False" to run silently
+DEBUG = False
 # Start time
-start_time     = datetime.datetime.now()
+START_TIME = datetime.datetime.now()
 # Backup timestamp
-start_stamp    = start_time.strftime(TIMEFORMAT)
+START_STAMP = START_TIME.strftime(TIMEFORMAT)
 
 
 
@@ -54,8 +48,8 @@ def line_log(log_message):
     this_time = datetime.datetime.now()
     # Timestamp string to be used right now
     timestamp = this_time.strftime(TIMEFORMAT)
-    with open(LOGFILE, "a+") as outfile:
-        outfile.write(timestamp + " : " + str(log_message) + "\n")
+    with open(LOGFILE, "a+") as logfile:
+        logfile.write(timestamp + " : " + str(log_message) + "\n")
 
 
 
@@ -64,24 +58,24 @@ def line_log(log_message):
 ###########
 def trim_log():
     """
-    Removes log lines that older than LOG_DAYS days
+    Removes log lines that older than LOGDAYS days
     """
 
     # If LOGFILE is empty (too early termination), skip trimming
     if LOGFILE != "":
 
         # Timestamp of oldest messages to be kept in log file
-        oldest_time = start_time + datetime.timedelta(days=-LOG_DAYS)
+        oldest_time = START_TIME + datetime.timedelta(days=-LOGDAYS)
 
         # Read log file content to a list
-        with open(LOGFILE,'r') as infile:
-            logdata = infile.readlines()
+        with open(LOGFILE, 'r') as logfile:
+            logdata = logfile.readlines()
 
         # Search for oldest timestamp which is greater then or equal to threshold
         cursor = 0
-        for x in logdata:
+        for datum in logdata:
             try:
-                timestamp = datetime.datetime.strptime(x.split()[0],TIMEFORMAT)
+                timestamp = datetime.datetime.strptime(datum.split()[0], TIMEFORMAT)
             except ValueError as e:
                 pass
             except IndexError as e:
@@ -94,8 +88,8 @@ def trim_log():
         logdata = logdata[cursor:]
 
         # Write back changed data (list) to logfile
-        with open(LOGFILE, "w") as outfile:
-            outfile.writelines(logdata)
+        with open(LOGFILE, "w") as logfile:
+            logfile.writelines(logdata)
 
 
 
@@ -123,14 +117,14 @@ def terminate_program(error_message):
 
 ###########
 # Get config file locations
+# Look into user's home dir comes first, than into the dir where this script is
 ###########
-config_locations = []
-config_locations.append(os.path.expanduser('~'))                      # user's home dir comes first, config files here have precedence
-config_locations.append(os.path.dirname(os.path.realpath(__file__)))  # dir where this script is
+CONFIG_LOCATIONS = [os.path.expanduser('~'), os.path.dirname(os.path.realpath(__file__))]
 # debug #################################
-if debug: print "*****"
-if debug: print "***** debug: config locations list = " + str(config_locations)
-if debug: print "*****"
+if DEBUG:
+    print "*****"
+    print "***** debug: config locations list = " + str(CONFIG_LOCATIONS)
+    print "*****"
 #########################################
 
 
@@ -138,10 +132,9 @@ if debug: print "*****"
 ###########
 # Read first available config file
 ###########
-config_file_name = CONFIGFILE
 # Iterate possible config file locations list, search usable config files
-for this_config_file_path in config_locations:
-    config_file_path = this_config_file_path + "/" + config_file_name
+for this_config_file_path in CONFIG_LOCATIONS:
+    config_file_path = this_config_file_path + "/" + CONFIGFILE
     if os.path.exists(config_file_path):
 
         ###########
@@ -149,20 +142,21 @@ for this_config_file_path in config_locations:
         ###########
 
         # debug #################################
-        if debug: print "*****"
-        if debug: print "***** debug: found config file @ " + config_file_path
-        if debug: print "*****"
+        if DEBUG:
+            print "*****"
+            print "***** debug: found config file @ " + config_file_path
+            print "*****"
         #########################################
 
         # Initialize configuration data structures
         CONFIG_DATA = {
-                        "<LOGFILE>"    : "",
-                        "<BACKUPROOT>" : "",
-                        "<TARGET>"     : []
-                      }
+            "<LOGFILE>"    : "",
+            "<BACKUPROOT>" : "",
+            "<TARGET>"     : []
+        }
 
         # Read config file content
-        with open(config_file_path,'r') as infile:
+        with open(config_file_path, 'r') as infile:
             configdata = infile.readlines()
 
         # Scan data from file, retrieving relevant info
@@ -176,10 +170,11 @@ for this_config_file_path in config_locations:
                 if tokens[0] in CONFIG_DATA.keys():
                     expanded_payload = os.path.expandvars(os.path.expanduser(payload))
                     # debug #################################
-                    if debug: print "*****"
-                    if debug: print "***** debug: config data retrieved from config file"
-                    if debug: print "*****"
-                    if debug: print "{0:40s} {1:80s}".format(tokens[0], expanded_payload)
+                    if DEBUG:
+                        print "*****"
+                        print "***** debug: config data retrieved from config file"
+                        print "*****"
+                        print "{0:40s} {1:80s}".format(tokens[0], expanded_payload)
                     #########################################
                     if tokens[0] == "<TARGET>":
                         CONFIG_DATA[tokens[0]].append(expanded_payload)
@@ -190,7 +185,7 @@ for this_config_file_path in config_locations:
                     terminate_program("invalid data in configuration file at line #" + str(line_number))
 
         # Check that config data is complete
-        for this_key in CONFIG_DATA.keys():
+        for this_key in CONFIG_DATA:
             if len(CONFIG_DATA[this_key]) == 0:
                 if this_key == "<TARGET>":
                     # No targets to backup
@@ -211,7 +206,7 @@ for this_config_file_path in config_locations:
             terminate_program("path name '" + BACKUPROOT + "/' for backups dir is *not* a directory")
         # Check that BACKUPROOT is writeable
         try:
-            testfile = tempfile.TemporaryFile(dir = BACKUPROOT)
+            testfile = tempfile.TemporaryFile(dir=BACKUPROOT)
             testfile.close()
         except OSError as e:
             # Error trying to write to BACKUPROOT
@@ -233,7 +228,7 @@ for this_config_file_path in config_locations:
 
 
 ###########
-# Iterate backup list
+# Iterate targets list
 ###########
 for this_target in CONFIG_DATA["<TARGET>"]:
 
@@ -251,7 +246,7 @@ for this_target in CONFIG_DATA["<TARGET>"]:
         terminate_program("path name '" + this_target_bkp_root_dir + "/' for backups dir is *not* a directory")
     # Check that BACKUPROOT is writeable
     try:
-        testfile = tempfile.TemporaryFile(dir = this_target_bkp_root_dir)
+        testfile = tempfile.TemporaryFile(dir=this_target_bkp_root_dir)
         testfile.close()
     except OSError as e:
         # Error trying to write to this_target_bkp_root_dir
@@ -268,7 +263,7 @@ for this_target in CONFIG_DATA["<TARGET>"]:
     # Look up for existing backups within this target's backup dir
     instances = glob.glob(this_target_bkp_root_dir + "/*")
     if len(instances) > 0:
-        timestamps = [datetime.datetime.strptime(os.path.basename(x),TIMEFORMAT) for x in instances]
+        timestamps = [datetime.datetime.strptime(os.path.basename(x), TIMEFORMAT) for x in instances]
     else:
         timestamps = None
 
@@ -279,7 +274,7 @@ for this_target in CONFIG_DATA["<TARGET>"]:
         newest_backup = None
 
     # Name of backup subdir will be it's timestamp string
-    this_target_new_backup_path = this_target_bkp_root_dir + "/" + start_stamp
+    this_target_new_backup_path = this_target_bkp_root_dir + "/" + START_STAMP
 
     # Base rsync command with options
     rsync_cmd_list = ['rsync', '-CLavz', '--stats']
@@ -311,22 +306,22 @@ for this_target in CONFIG_DATA["<TARGET>"]:
         rsync_cmd_list += [this_target + '/', this_target_new_backup_path]
 
     # debug #################################
-    if debug: print "*****"
-    if debug: print "***** debug: rsync command tokens list"
-    if debug: print "*****"
-    if debug: print rsync_cmd_list
+    if DEBUG:
+        print "*****"
+        print "***** debug: rsync command tokens list"
+        print "*****"
+        print rsync_cmd_list
     #########################################
 
     # Run external process for backup creation
-    line_log("Creating new backup '" + start_stamp + "' of target '" + os.path.basename(this_target) + "'")
+    line_log("Creating new backup '" + START_STAMP + "' of target '" + os.path.basename(this_target) + "'")
     try:
-        rsync_output = []
         rsync_output = check_output(rsync_cmd_list, stderr=STDOUT)
     except CalledProcessError as e:
-        line_log("Failed creating new backup '" + start_stamp + "'")
-        terminate_program("'rsync' failed, returned code %d" % e.returncode )
+        line_log("Failed creating new backup '" + START_STAMP + "'")
+        terminate_program("'rsync' failed, returned code %d" % e.returncode)
     except OSError as e:
-        line_log("Failed creating new backup '" + start_stamp + "'")
+        line_log("Failed creating new backup '" + START_STAMP + "'")
         terminate_program("failed to execute 'rsync': %s" % (str(e)))
     else:
         # Create rsync log file
@@ -348,16 +343,15 @@ for this_target in CONFIG_DATA["<TARGET>"]:
     instances = glob.glob(this_target_bkp_root_dir + "/*")
 
     # Compute timestamps for oldest backups to be kept for monthly, weekly, daily and "latest" backups
-    start_time = datetime.datetime.now()
-    monthly_limit = start_time + datetime.timedelta(weeks   = -48)
-    weekly_limit  = start_time + datetime.timedelta(weeks   = -04)
-    daily_limit   = start_time + datetime.timedelta(days    = -30)
-    hourly_limit  = start_time + datetime.timedelta(hours   = -24)
-    latest_limit  = start_time + datetime.timedelta(minutes = -60)
+    monthly_limit = START_TIME + datetime.timedelta(weeks=-48)
+    weekly_limit = START_TIME + datetime.timedelta(weeks=-04)
+    daily_limit = START_TIME + datetime.timedelta(days=-30)
+    hourly_limit = START_TIME + datetime.timedelta(hours=-24)
+    latest_limit = START_TIME + datetime.timedelta(minutes=-60)
 
     # Assess which existing backups must be kept
     if len(instances) > 0:
-        remove_list = dict([(datetime.datetime.strptime(os.path.basename(x),TIMEFORMAT), x) for x in instances])
+        remove_list = dict([(datetime.datetime.strptime(os.path.basename(x), TIMEFORMAT), x) for x in instances])
     else:
         remove_list = None
 
@@ -367,22 +361,26 @@ for this_target in CONFIG_DATA["<TARGET>"]:
         # Check for monthly backups
         if x.day == 1 and x.hour == 0 and x.minute == 0:
             # POP from removal list monthly backups that are newer than monthly_limit
-            if x > monthly_limit: remove_list.pop(x)
+            if x > monthly_limit:
+                remove_list.pop(x)
 
         # Check for weekly backups
         elif x.weekday() == 6 and x.hour == 0 and x.minute == 0:
             # POP from removal list weekly backups that are newer than weekly_limit
-            if x > weekly_limit: remove_list.pop(x)
+            if x > weekly_limit:
+                remove_list.pop(x)
 
         # Check for daily backups
         elif x.hour == 0 and x.minute == 0:
             # POP from removal list daily backups that are newer than daily_limit
-            if x > daily_limit: remove_list.pop(x)
+            if x > daily_limit:
+                remove_list.pop(x)
 
         # Check for hourly backups
         elif x.minute == 0:
             # POP from removal list hourly backups that are newer than hourly_limit
-            if x > hourly_limit: remove_list.pop(x)
+            if x > hourly_limit:
+                remove_list.pop(x)
 
         # Check for any backups that are really new
         elif x > latest_limit:
@@ -401,21 +399,20 @@ for this_target in CONFIG_DATA["<TARGET>"]:
             remove_cmd_list = ['rm', '-Rf', remove_list[x]]
 
             # debug #################################
-            if debug: print "*****"
-            if debug: print "***** debug: remove command tokens list"
-            if debug: print "*****"
-            if debug: print remove_cmd_list
+            if DEBUG:
+                print "*****"
+                print "***** debug: remove command tokens list"
+                print "*****"
+                print remove_cmd_list
             #########################################
 
             # Run external process for backup removal
             line_log("Removing old backup '" + os.path.basename(remove_list[x]) + "'")
             try:
-                remove_output = []
                 remove_output = check_output(remove_cmd_list, stderr=STDOUT)
-                pass
             except CalledProcessError as e:
                 line_log("Failed removing old backup '" + remove_list[x] + "'")
-                terminate_program("'rm' failed, returned code %d" % e.returncode )
+                terminate_program("'rm' failed, returned code %d" % e.returncode)
             except OSError as e:
                 line_log("Failed removing old backup '" + remove_list[x] + "'")
                 terminate_program("failed to execute 'rm': %s" % (str(e)))
