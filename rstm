@@ -221,7 +221,7 @@ for this_config_file_path in CONFIG_LOCATIONS:
             terminate_program("unable to write to log file '" + LOGFILE + "'")
 
         # Usable, complete config file found and processed - add a log line
-        line_log("Started 'rsyncbkp' script using config file " + config_file_path)
+        line_log("Started 'rstm' script using config file " + config_file_path)
         # Stop searching for config file and proceed
         break
 
@@ -427,6 +427,6 @@ for this_target in CONFIG_DATA["<TARGET>"]:
 ###########
 # Log script termination
 ###########
-line_log("Finished 'rsyncbkp' script")
+line_log("Finished 'rstm' script")
 
 terminate_program("")
